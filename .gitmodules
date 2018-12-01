@@ -1,0 +1,3 @@
+[submodule "demos/tkcon"]
+	path = demos/tkcon
+	url = https://github.com/wjoye/tkcon
