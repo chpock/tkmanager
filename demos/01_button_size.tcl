@@ -6,32 +6,24 @@
 # published by the Free Software Foundation, either version 3 of
 # the License, or (at your option) any later version.
 
-lappend auto_path [file join [pwd] ..] [file join [pwd] tkcon]
+proc openSettingsButtonSize { } {
 
-package require tkmanager
+    set window ".[namespace tail [lindex [info level 0] 0]]"
 
-lappend ::tkm::iconPath [file join [pwd] icons famfamfam]
-
-package require tkcon
-
-tkcon show
-
-proc openSettings { } {
-
-    if { [winfo exists .settings] } {
-        wm deiconify .settings
-        focus .settings
+    if { [winfo exists $window] } {
+        wm deiconify $window
+        focus $window
         return
     }
 
-    tkm::packer -debug -path .settings -newwindow -title "Settings" {
+    tkm::packer -debug $::gDebug -path $window -newwindow -title "Settings" {
 
         set action [list apply {{ window action varSize } {
 
             puts "Action: $action Size: [set $varSize]"
 
             if { $action in {ok apply} } {
-                set ::gSize [set $varSize]
+                set ::gButtonSize [set $varSize]
             }
 
             if { $action in {ok close} } {
@@ -40,11 +32,11 @@ proc openSettings { } {
 
         }} [tkm::parent]]
 
-        tkm::labelframe -text "Button Size:" -image [tkm::icon arrow_out] -pad 10 -ipady 3 -side left -anchor n -- {
+        tkm::labelframe -text "Button Size:" -image [tkm::icon arrow_out] -padx 10 -pady 13 -side left -anchor n -- {
 
             tkm::defaults -fill both -padx 5 -pady 3
 
-            set varSize [tkm::autovar size]
+            set varSize [tkm::var size]
 
             tkm::radiobutton -text "16px" -variable $varSize -value "16" -column 0
             tkm::radiobutton -text "32px" -variable $varSize -value "32" -column +
@@ -55,9 +47,11 @@ proc openSettings { } {
 
         }
 
-        tkm::frame -side right -padx {0 10} -pady 10 -- {
+        tkm::separator -orient vertical -side left -pady 13 -fill y
 
-            tkm::defaults -padx 5 -pady 3
+        tkm::frame -side right -padx 10 -pady 13 -- {
+
+            tkm::defaults -pady 3
 
             tkm::button -text "OK"    -image [tkm::icon tick]   \
                 -command [concat $action [list ok    $varSize]]
@@ -68,7 +62,11 @@ proc openSettings { } {
 
         }
 
-        set $varSize $::gSize
+        set $varSize $::gButtonSize
+
+        wm resizable [tkm::parent] 0 0
+
+        tkm::centerWindow [tkm::parent]
 
     }
 
@@ -76,15 +74,13 @@ proc openSettings { } {
 
 tkm::packer {
 
-    set ::gSize 16
+    set ::gButtonSize 16
 
-    tkm::frame -- {
-        tkm::label -text "Open:" -side left -pad 10
-        tkm::button -text "Settings" -side right -pad 10 -padx {0 10} -command openSettings
+    tkm::frame -fill x -pad 5 -- {
+        tkm::label -text "Button size settings:" -side left -padx 10 -anchor w
+        tkm::button -text "Open" -image [tkm::icon application_go] \
+            -side right -padx {0 10} -anchor e \
+            -command openSettingsButtonSize
     }
-
-    tkm::separator -fill x -expand 1 -padx 10
-
-    tkm::button -text "Exit" -pad 10 -command exit
 
 }

@@ -8,6 +8,9 @@
 
 package provide tkmanager 0.0.1
 
+package require Tk
+package require tile
+
 namespace eval ::tkm {
 
     variable UID
@@ -37,7 +40,7 @@ namespace eval ::tkm {
                     set path [lindex $args [incr i]]
                 }
                 -debug {
-                    set debug 1
+                    set debug [lindex $args [incr i]]
                 }
                 -newwindow {
                     set newwindow 1
@@ -81,7 +84,7 @@ namespace eval ::tkm {
             path     $path   \
         ]
 
-        set code [catch [list uplevel 1 $script] result]
+        set result [uplevel 1 $script]
 
         if { $debug } {
 
@@ -110,15 +113,20 @@ namespace eval ::tkm {
             unset state
         }
 
-        return -code $code $result
+        return $result
 
     }
 
-    proc autovar { suffix } {
+    proc var { {suffix {}} } {
 
         variable state
+        variable UID
 
         set parent [dict get $state path]
+
+        if { $suffix eq "" } {
+            set suffix [incr UID]
+        }
 
         return "::tkm::(${parent},variable,${suffix})"
 
@@ -179,7 +187,7 @@ namespace eval ::tkm {
             default { set managerInfo [list] }
         }
 
-        puts "ENTER: $wid : x:$x y:$y h:$h w:$w toplevel:$toplevel manager:$manager \[$managerInfo\]"
+        puts "ENTER\[[winfo class $wid] $wid\] x:$x y:$y h:$h w:$w toplevel:$toplevel manager:$manager \[$managerInfo\]"
 
         if { ![dict exists $managerInfo -padx] } {
             dict set managerInfo -padx {0 0}
@@ -288,6 +296,66 @@ namespace eval ::tkm {
 
     }
 
+    proc centerWindow { window {relative screen} } {
+
+        variable UID
+
+        wm withdraw $window
+
+        update idletasks
+
+        set width  [winfo reqwidth  $window]
+        set height [winfo reqheight $window]
+
+        if { $relative eq "screen" } {
+
+            if { [catch {
+
+                package require twapi
+
+                set workarea [twapi::get_display_monitor_info \
+                    [twapi::get_display_monitor_from_window \
+                        $window -default nearest \
+                    ] \
+                ]
+
+                set workarea [dict get $workarea -workarea]
+
+                set x [expr { ([lindex $workarea 2] - $width) / 2 }]
+                set y [expr { ([lindex $workarea 3] - $height) / 2 }]
+
+            }] } {
+
+                set x [expr { ([winfo screenwidth $window] - $width) / 2}]
+                set y [expr { ([winfo screenheight $window] - $height) / 2}]
+                # the above commands gives screen resolution, but not
+                # actual workspace size
+                #toplevel [set testWin ".__test_screen_size__[incr UID]"]
+                #wm withdraw $testWin
+                #wm state $testWin zoomed
+                #update idletasks
+                #set x [expr { ([winfo width $testWin] - $width) / 2 }]
+                #set y [expr { ([winfo height $testWin] - $height) / 2 }]
+                #destroy $testWin
+                # this solution gives blinked window
+
+            }
+
+        } else {
+
+            set x [expr { [winfo x $relative] + ([winfo width $relative] - $width) / 2 }]
+            set y [expr { [winfo y $relative] + ([winfo height $relative] - $height) / 2 }]
+
+        }
+
+        if { $x < 0 } { set x 1 }
+        if { $y < 0 } { set y 1 }
+
+        wm geometry $window ${width}x${height}+${x}+${y}
+        wm deiconify $window
+
+    }
+
     proc _checkbutton { mode } {
 
         upvar args_widget args_widget
@@ -343,9 +411,9 @@ namespace eval ::tkm {
         if { $mode eq "init" } {
 
             if {
-                    [dict exists $args_widget -text] &&
-                    [dict exists $args_widget -image] &&
-                    ![dict exists $args_widget -compound]
+                [dict exists $args_widget -text] &&
+                [dict exists $args_widget -image] &&
+                ![dict exists $args_widget -compound]
             } {
                 dict set args_widget -compound left
             }
@@ -362,17 +430,20 @@ namespace eval ::tkm {
 
             if { [dict exists $args_widget -image] } {
 
-                if { [dict exists $args_widget -text] && ![dict exists $args_widget -compound] } {
-                    dict set args_widget -compound left
-                }
-
                 set labelFrame [frame -- {
 
                     if { [dict exists $args_widget -text] } {
+
+                        if { ![dict exists $args_widget -compound] } {
+                            dict set args_widget -compound left
+                        }
+
                         tkm::label \
+                            -style    TKMLabelframeLabel.TLabel         \
                             -image    [dict get $args_widget -image]    \
                             -text     [dict get $args_widget -text]     \
                             -compound [dict get $args_widget -compound]
+
                     } else {
                         tkm::label -image [dict get $args_widget -image]
                     }
@@ -410,45 +481,42 @@ namespace eval ::tkm {
         }
 
         if { [dict exists $args_widget -textvariable] && [dict get $args_widget -textvariable] eq "AUTO" } {
-            dict set args_widget -variable "::tkm::(${wid},text)"
+            dict set args_widget -textvariable "::tkm::(${wid},text)"
         }
 
         if { [llength [info commands ::ttk::$widget]] } {
             set widget "::ttk::$widget"
+        } elseif { [llength [info commands ::tk::$widget]] } {
+            set widget "::tk::$widget"
         }
 
-        set code [catch [list uplevel 1 [list $widget $wid {*}$args_widget]] result]
-
-        if { !$code } {
-
-            dict set state wid $result
-
-            if { [dict get $state debug] } {
-                bind $result <Enter> { ::tkm::DebugEnter %W }
-                bind $result <Leave> { ::tkm::DebugLeave %W }
-            }
-
-            if { [info exists customCmd] } {
-                $customCmd post
-            }
-
-            if { $args_add ne "" } {
-
-                set codeChild [catch [list uplevel 1 \
-                    [list ::tkm::packer -path $wid $args_add] \
-                ] resultChild]
-
-                if { $codeChild } {
-                    return -code $codeChild $resultChild
-                }
-
-            }
-
-            ApplyPack
-
+        if { [info exists customCmd] } {
+            $customCmd create
         }
 
-        return -code $code $result
+        # the widget could be created by custom cmd
+        if { ![info exists result] } {
+            set result [uplevel 1 [list $widget $wid {*}$args_widget]]
+        }
+
+        dict set state wid $result
+
+        if { [dict get $state debug] } {
+            bind $result <Enter> { ::tkm::DebugEnter %W }
+            bind $result <Leave> { ::tkm::DebugLeave %W }
+        }
+
+        if { [info exists customCmd] } {
+            $customCmd post
+        }
+
+        if { $args_add ne "" } {
+            uplevel 1 [list ::tkm::packer -path $wid $args_add]
+        }
+
+        ApplyPack
+
+        return $result
 
     }
 
@@ -459,11 +527,18 @@ namespace eval ::tkm {
         upvar args_pack args_pack
         upvar wid       wid
 
+        if { [dict exists $args_pack -nopack] } {
+            return
+        }
+
         if { [dict exists $args_pack -row] || [dict exists $args_pack -column] } {
 
             if { [dict exists $args_pack -row] } {
                 if { [dict get $args_pack -row] eq "+" } {
                     dict set state row [expr { [dict get $state row] + 1 }]
+                    if { ![dict exists $args_pack -column] } {
+                        dict set state column 0
+                    }
                 } else {
                     dict set state row [dict get $args_pack -row]
                 }
@@ -492,6 +567,12 @@ namespace eval ::tkm {
 
             grid $wid {*}$args_pack
 
+            if { [dict exists $args_pack -columnspan] } {
+                dict set state column [expr {
+                    [dict get $state column] + [dict get $args_pack -columnspan] - 1
+                }]
+            }
+
         } else {
 
             pack $wid {*}$args_pack
@@ -518,7 +599,7 @@ namespace eval ::tkm {
 
         set parent [dict get $state path]
 
-        if { $parent ne "." } {
+        if { $parent ne "." && ![string match "${parent}.*" $wid] } {
             set wid "${parent}$wid"
         }
 
@@ -560,6 +641,10 @@ namespace eval ::tkm {
 
                 dict set args_pack $param [lindex $args [incr i]]
 
+            } elseif { $param eq "-nopack" } {
+
+                dict set args_pack $param 1
+
             } elseif { $param in {-pad -ipad} } {
 
                 set val [lindex $args [incr i]]
@@ -588,35 +673,49 @@ namespace eval ::tkm {
 
 }
 
-foreach widget {
-    button
-    checkbutton
-    combobox
-    entry
-    frame
-    label
-    labelframe
-    menubutton
-    notebook
-    panedwindow
-    progressbar
-    radiobutton
-    scale
-    scrollbar
-    separator
-    sizegrip
-    spinbox
-    treeview
-} {
-    proc "::tkm::$widget" { args } {
+{*}[list apply {{} {
 
-        set widget [lindex [info level 0] 0]
+    foreach widget {
+        button
+        checkbutton
+        combobox
+        entry
+        frame
+        label
+        labelframe
+        menubutton
+        notebook
+        panedwindow
+        progressbar
+        radiobutton
+        scale
+        scrollbar
+        separator
+        sizegrip
+        spinbox
+        treeview
 
-        if { [namespace qualifiers $widget] in {tkm ::tkm} } {
-            set widget [namespace tail $widget]
+        listbox
+    } {
+        proc "::tkm::$widget" { args } {
+
+            set widget [lindex [info level 0] 0]
+
+            if { [namespace qualifiers $widget] in {tkm ::tkm} } {
+                set widget [namespace tail $widget]
+            }
+
+            tailcall SimpleWidget $widget {*}$args
+
         }
-
-        tailcall SimpleWidget $widget {*}$args
-
     }
-}
+
+    set style [list -space 7]
+
+    if { [set fg [ttk::style lookup TLabelframe.Label -foreground]] ne "" } {
+        lappend style -foreground $fg
+    }
+
+    ttk::style configure TKMLabelframeLabel.TLabel {*}$style
+
+}}]
