@@ -18,26 +18,12 @@ proc openSettingsWeather { } {
 
     tkm::packer -debug $::gDebug -path $window -newwindow -title "Settings" {
 
-        set action [list apply {{ window action varSize } {
-
-            puts "Action: $action Size: [set $varSize]"
-
-            if { $action in {ok apply} } {
-                set ::gSize [set $varSize]
-            }
-
-            if { $action in {ok close} } {
-               #destroy $window
-            }
-
-        }} [tkm::parent]]
-
         tkm::labelframe -text "Location:" -image [tkm::icon world_go] \
             -padx 10 -pady 13 -fill both -expand 1 -- {
 
             tkm::defaults -fill both -padx 5 -pady 3
 
-            set varLocationType [tkm::var locType]
+            set varLocationType [tkm::var]
 
             set wSearchRadioAuto [tkm::radiobutton -text "Auto" \
                 -variable $varLocationType -value "auto" \

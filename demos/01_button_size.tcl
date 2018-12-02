@@ -36,7 +36,7 @@ proc openSettingsButtonSize { } {
 
             tkm::defaults -fill both -padx 5 -pady 3
 
-            set varSize [tkm::var size]
+            set varSize [tkm::var]
 
             tkm::radiobutton -text "16px" -variable $varSize -value "16" -column 0
             tkm::radiobutton -text "32px" -variable $varSize -value "32" -column +
