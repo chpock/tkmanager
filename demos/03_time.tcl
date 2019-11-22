@@ -16,6 +16,30 @@ proc openSettingsDateTime { } {
         return
     }
 
+    set procSaveSettings [list apply {{ } {
+        # do nothing
+    }}]
+
+    set procLoadSettings [list apply {{ } {
+
+        if { [info exists ::gDateTimeCurrentTimezone] } {
+            return
+        }
+
+        set ::gDateTimeCurrentTimezone ""
+        set ::gDateTimeCurrentTimeFormat ""
+        set ::gDateTimeTooltipDateFormat ""
+
+        for { set i 0 } { $i <= 4 } { incr i } {
+
+            set "::gDateTime${i}Timezone" ""
+            set "::gDateTime${i}TimeFormat" ""
+            set "::gDateTime${i}Enabled" 0
+
+        }
+
+    }}]
+
     set availableTooltipDateFormat {
         ""
         "%m/%d/%Y"
@@ -153,11 +177,8 @@ proc openSettingsDateTime { } {
 
         }
 
-        wm resizable [tkm::parent] 0 0
-
-        tkm::centerWindow [tkm::parent]
-
         set procAction [list apply {{
+            procSaveSettings
             varMapTimezone
             varTooltipDateFormat
             varCurrentTZ varCurrentFormat
@@ -183,6 +204,10 @@ proc openSettingsDateTime { } {
                     set "::gDateTime${i}Enabled"    [set [set "var${i}Enabled"]]
                 }
 
+                if { $procSaveSettings ne "" } {
+                    {*}$procSaveSettings
+                }
+
             }
 
             if { $action in {ok close} } {
@@ -190,6 +215,7 @@ proc openSettingsDateTime { } {
             }
 
         }} \
+            $procSaveSettings \
             $varMapTimezone \
             $varTooltipDateFormat \
             $varCurrentTZ $varCurrentFormat \
@@ -205,6 +231,8 @@ proc openSettingsDateTime { } {
         $wActionApply configure -command [concat $procAction apply]
 
     }
+
+    {*}$procLoadSettings
 
     set $varCurrentFormat $::gDateTimeCurrentTimeFormat
     set $varTooltipDateFormat $::gDateTimeTooltipDateFormat
@@ -322,21 +350,13 @@ proc openSettingsDateTime { } {
 
     }
 
+    wm resizable $window 0 0
+
+    tkm::centerWindow $window
+
 }
 
 tkm::packer {
-
-    set ::gDateTimeCurrentTimezone ""
-    set ::gDateTimeCurrentTimeFormat ""
-    set ::gDateTimeTooltipDateFormat ""
-
-    for { set i 0 } { $i <= 4 } { incr i } {
-
-        set "::gDateTime${i}Timezone" ""
-        set "::gDateTime${i}TimeFormat" ""
-        set "::gDateTime${i}Enabled" 0
-
-    }
 
     tkm::frame -fill x -pad 5 -- {
         tkm::label -text "DateTime settings:" -side left -padx 10 -anchor w
